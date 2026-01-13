@@ -4,6 +4,7 @@
 import { useState } from 'react';
 import { Hero } from '@/components/sections/Hero';
 import { FilterBar, FilterState } from '@/components/sections/FilterBar';
+import { ScrapedResults, ScrapedFiling } from '@/components/sections/ScrapedResults';
 import { StatCard } from '@/components/ui/StatCard';
 import { FilingCard } from '@/components/ui/FilingCard';
 import { Modal, AISummaryContent } from '@/components/ui/Modal';
@@ -65,9 +66,47 @@ export default function HomePage() {
     searchQuery: '',
   });
 
+  // Scraping state
+  const [scrapedResults, setScrapedResults] = useState<ScrapedFiling[] | null>(null);
+  const [isScraperLoading, setIsScraperLoading] = useState(false);
+  const [scraperError, setScraperError] = useState<string | undefined>();
+
   const handleViewSummary = (filingId: string) => {
     setSelectedFiling(filingId);
     setModalOpen(true);
+  };
+
+  const handleSearch = async (searchFilters: FilterState) => {
+    setIsScraperLoading(true);
+    setScraperError(undefined);
+    setScrapedResults(null);
+
+    try {
+      const response = await fetch('/api/scrape', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          state: searchFilters.state,
+          insuranceType: searchFilters.insuranceType,
+          companyName: searchFilters.searchQuery || 'All',
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.filings) {
+        // Use the real scraped filings from SERFF!
+        setScrapedResults(data.filings);
+      } else {
+        setScraperError(data.error || 'Failed to scrape SERFF');
+      }
+    } catch (error) {
+      setScraperError('Failed to connect to scraper');
+    } finally {
+      setIsScraperLoading(false);
+    }
   };
 
   return (
@@ -75,8 +114,20 @@ export default function HomePage() {
       <Hero />
 
       <div className="px-8">
-        <FilterBar onFilterChange={setFilters} />
+        <FilterBar
+          onFilterChange={setFilters}
+          onSearch={handleSearch}
+        />
       </div>
+
+      {/* Scraped Results Section */}
+      {(scrapedResults || isScraperLoading || scraperError) && (
+        <ScrapedResults
+          results={scrapedResults}
+          isLoading={isScraperLoading}
+          error={scraperError}
+        />
+      )}
 
       <div className="max-w-7xl mx-auto px-8 py-8">
         {/* Stats Section */}

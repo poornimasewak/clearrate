@@ -5,6 +5,7 @@ import { useState } from 'react';
 
 interface FilterBarProps {
   onFilterChange?: (filters: FilterState) => void;
+  onSearch?: (filters: FilterState) => void;
 }
 
 export interface FilterState {
@@ -13,12 +14,13 @@ export interface FilterState {
   searchQuery: string;
 }
 
-export function FilterBar({ onFilterChange }: FilterBarProps) {
+export function FilterBar({ onFilterChange, onSearch }: FilterBarProps) {
   const [filters, setFilters] = useState<FilterState>({
     state: 'California',
     insuranceType: 'Auto Insurance',
     searchQuery: '',
   });
+  const [isSearching, setIsSearching] = useState(false);
 
   const handleFilterChange = (key: keyof FilterState, value: string) => {
     const newFilters = { ...filters, [key]: value };
@@ -26,9 +28,20 @@ export function FilterBar({ onFilterChange }: FilterBarProps) {
     onFilterChange?.(newFilters);
   };
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSearching(true);
+    try {
+      await onSearch?.(filters);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
   return (
     <div className="bg-white p-8 max-w-7xl mx-auto -mt-12 mb-12 rounded-2xl shadow-2xl border border-slate-200 relative z-20">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+      <form onSubmit={handleSubmit}>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
         {/* State Filter */}
         <div className="flex flex-col gap-2">
           <label htmlFor="state" className="font-semibold text-slate-700 text-sm">
@@ -82,6 +95,24 @@ export function FilterBar({ onFilterChange }: FilterBarProps) {
           />
         </div>
       </div>
+
+      {/* Submit Button */}
+      <button
+        type="submit"
+        disabled={isSearching}
+        className="w-full px-6 py-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl font-bold text-lg hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl"
+      >
+        {isSearching ? (
+          <span className="flex items-center justify-center gap-2">
+            <span className="animate-spin">🔄</span> Searching SERFF...
+          </span>
+        ) : (
+          <span className="flex items-center justify-center gap-2">
+            🔍 Search Filings
+          </span>
+        )}
+      </button>
+      </form>
     </div>
   );
 }
