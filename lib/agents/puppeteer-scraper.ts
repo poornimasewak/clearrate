@@ -1,5 +1,6 @@
 // lib/agents/puppeteer-scraper.ts
-import puppeteer from 'puppeteer';
+import puppeteer from 'puppeteer-core';
+import chromium from '@sparticuz/chromium';
 
 interface PuppeteerScraperInput {
     state: string;
@@ -54,10 +55,24 @@ export class PuppeteerSERFFScraper {
 
         let browser;
         try {
-            browser = await puppeteer.launch({
+            // Configure for serverless environment (Vercel) or local development
+            const isProduction = process.env.VERCEL || process.env.NODE_ENV === 'production';
+            
+            const launchOptions: any = {
                 headless: true,
-                args: ['--no-sandbox', '--disable-setuid-sandbox'],
-            });
+                args: isProduction 
+                    ? [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox']
+                    : ['--no-sandbox', '--disable-setuid-sandbox'],
+            };
+            
+            // In production (Vercel), use chromium from @sparticuz/chromium
+            if (isProduction) {
+                launchOptions.executablePath = await chromium.executablePath();
+            }
+            // For local development, puppeteer-core will use system Chrome
+            // Or install regular 'puppeteer' package for local dev
+            
+            browser = await puppeteer.launch(launchOptions);
 
             const page = await browser.newPage();
             page.setDefaultNavigationTimeout(60000);
