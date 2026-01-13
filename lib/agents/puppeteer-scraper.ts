@@ -237,22 +237,28 @@ export class PuppeteerSERFFScraper {
                 console.log('   ⏳ Attempting form submission...');
                 
                 // Find the Search button (it's a <button>, not <input>!)
-                const searchButtonSelector = 'button[type="submit"]#simpleSearch\\:saveBtn, button:has-text("Search")';
                 let searchButton = await page.$('#simpleSearch\\:saveBtn');
                 
                 if (!searchButton) {
-                    // Fallback: find button with text "Search"
-                    searchButton = await page.evaluateHandle(() => {
-                        const buttons = Array.from(document.querySelectorAll('button[type="submit"]'));
-                        return buttons.find(b => b.textContent?.trim() === 'Search') || null;
-                    }).then(handle => handle.asElement());
+                    // Fallback: try to find button with text "Search"
+                    console.log('   ⚠️ Primary selector failed, trying fallback...');
+                    
+                    // Use page.$ with a more generic selector
+                    const buttons = await page.$$('button[type="submit"]');
+                    for (const button of buttons) {
+                        const text = await page.evaluate(el => el.textContent?.trim(), button);
+                        if (text === 'Search') {
+                            searchButton = button;
+                            break;
+                        }
+                    }
                 }
                 
                 if (!searchButton) {
                     throw new Error('Search button not found on page!');
                 }
                 
-                console.log('   ✅ Search button found (button#simpleSearch:saveBtn), clicking...');
+                console.log('   ✅ Search button found, clicking...');
                 
                 // Start waiting for navigation BEFORE clicking
                 const navigationPromise = page.waitForNavigation({ 
