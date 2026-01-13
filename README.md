@@ -1,36 +1,168 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ClearRate - Insurance Rates, Made Clear
 
-## Getting Started
+A modern Next.js application for tracking insurance rate filings across the US with AI-powered summaries.
 
-First, run the development server:
+## 🚀 Features
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- **Real-time Rate Tracking**: Monitor insurance rate filings as they're submitted
+- **AI-Powered Summaries**: Claude AI generates plain-English summaries of complex rate justifications
+- **Interactive Filtering**: Filter by state, insurance type, and company
+- **Comprehensive Comparisons**: Compare rates across multiple companies and states
+- **Market Insights**: View trends and analytics on rate changes
+- **Beautiful UI**: Modern, responsive design built with Tailwind CSS
+
+## 📦 Tech Stack
+
+- **Framework**: Next.js 16.1.1 (App Router)
+- **UI**: React 19.2.3
+- **Styling**: Tailwind CSS 4.x
+- **Language**: TypeScript 5.x
+- **AI**: Claude API by Anthropic
+- **Agent Orchestration**: Agno Platform
+- **Database**: Supabase (PostgreSQL)
+- **Hosting**: Vercel Edge Network
+
+## 🏗️ Project Structure
+
+```
+clearrate/
+├── app/                    # Next.js app directory
+│   ├── page.tsx           # Home page with recent filings
+│   ├── compare/           # Compare rates page
+│   ├── trends/            # Market trends page
+│   ├── about/             # About page
+│   ├── layout.tsx         # Root layout with navigation
+│   └── globals.css        # Global styles
+├── components/            # Reusable React components
+│   ├── Navigation.tsx     # Main navigation bar
+│   ├── Hero.tsx          # Hero section
+│   ├── Filters.tsx       # Filter controls
+│   ├── StatsGrid.tsx     # Statistics cards
+│   ├── FilingCard.tsx    # Individual filing card
+│   ├── Modal.tsx         # Modal component
+│   ├── Footer.tsx        # Footer component
+│   └── Logo.tsx          # Logo component
+└── public/               # Static assets
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 🎨 Components
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Navigation
+- Sticky navigation bar with active route highlighting
+- Responsive design
+- Logo with custom magnifying glass icon
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Hero Section
+- Gradient background with animated pattern
+- Live badge with pulse animation
+- Clear call-to-action messaging
 
-## Learn More
+### Filters
+- State selection
+- Insurance type filtering
+- Company search
+- Real-time updates
 
-To learn more about Next.js, take a look at the following resources:
+### Stats Grid
+- Key metrics display
+- Hover animations
+- Responsive grid layout
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Filing Cards
+- Company information
+- Rate change visualization
+- Status badges
+- Action buttons
+- Modal integration for detailed views
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Modal
+- AI-generated summaries
+- Consumer impact analysis
+- Market comparisons
+- Detailed filing information
 
-## Deploy on Vercel
+## 🚀 Getting Started
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Prerequisites
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Node.js 20.x or higher
+- npm or yarn
+
+### Installation
+
+1. Clone the repository:
+```bash
+git clone <your-repo-url>
+cd clearrate
+```
+
+2. Install dependencies:
+```bash
+npm install
+```
+
+3. Run the development server:
+```bash
+npm run dev
+```
+
+4. Open [http://localhost:3000](http://localhost:3000) in your browser
+
+## 📝 Available Scripts
+
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm start` - Start production server
+- `npm run lint` - Run ESLint
+
+## 🎯 Pages
+
+### Home (`/`)
+- Recent insurance rate filings
+- Interactive filing cards
+- Quick stats overview
+- AI-powered summaries in modals
+
+### Compare (`/compare`)
+- Side-by-side rate comparisons
+- Interactive charts (placeholder)
+- Sortable table of all filings
+
+### Trends (`/trends`)
+- Market insights and analytics
+- Time-series data visualization (placeholder)
+- Key market indicators
+
+### About (`/about`)
+- Project information
+- Technology stack details
+- How it works explanation
+
+## 🎨 Design Features
+
+- **Modern UI**: Clean, professional design with smooth animations
+- **Responsive**: Works beautifully on desktop, tablet, and mobile
+- **Accessibility**: Semantic HTML and keyboard navigation support
+- **Performance**: Optimized with Next.js 16 and Turbopack
+- **Color Scheme**: Blue gradient theme with status-based color coding
+
+## 🔮 Future Enhancements
+
+- Real data integration with SERFF portals
+- Interactive data visualization charts
+- User authentication and saved searches
+- Email alerts for new filings
+- API for third-party integrations
+- Advanced filtering and sorting options
+
+## 📄 License
+
+This is a portfolio project for demonstration purposes.
+
+## 👨‍💻 Author
+
+Built with ❤️ using Next.js, React, and Claude AI
+
+---
+
+**Note**: This is a demonstration project. The data shown is sample data for illustration purposes.
