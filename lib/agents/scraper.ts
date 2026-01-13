@@ -124,7 +124,7 @@ export class SERFFScraper {
                         scrapeOptions: {
                             formats: ['markdown', 'html'],
                         },
-                    });
+                    }) as any; // Type assertion needed for Firecrawl API compatibility
 
                     console.log('📥 FULL Crawl response:', JSON.stringify(crawlResponse, null, 2));
 
@@ -174,7 +174,7 @@ export class SERFFScraper {
                     const mapResponse = await this.firecrawl.map(stateHomeUrl, {
                         search: `${searchParams.toi} filings ${input.companyName || ''}`.trim(),
                         limit: 20,
-                    });
+                    }) as any; // Type assertion needed for Firecrawl API compatibility
 
                     console.log('📥 FULL Map response:', JSON.stringify(mapResponse, null, 2));
 
@@ -208,7 +208,7 @@ export class SERFFScraper {
             console.log('🌐 Step 3: Attempting to access results page...');
             const resultsPageUrl = `https://filingaccess.serff.com/sfa/search/filingSearchResults.xhtml`;
 
-            const resultsPageResult = await this.firecrawl.scrape(resultsPageUrl);
+            const resultsPageResult = await this.firecrawl.scrape(resultsPageUrl) as any; // Type assertion needed for Firecrawl API compatibility
 
             console.log('📥 Results page response:', JSON.stringify(resultsPageResult, null, 2));
 
