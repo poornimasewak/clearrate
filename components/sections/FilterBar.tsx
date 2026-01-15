@@ -12,6 +12,7 @@ export interface FilterState {
   state: string;
   insuranceType: string;
   searchQuery: string;
+  maxPages: number;
 }
 
 export function FilterBar({ onFilterChange, onSearch }: FilterBarProps) {
@@ -19,6 +20,7 @@ export function FilterBar({ onFilterChange, onSearch }: FilterBarProps) {
     state: 'California',
     insuranceType: 'Auto Insurance',
     searchQuery: '',
+    maxPages: 50, // Default to 50 pages
   });
   const [isSearching, setIsSearching] = useState(false);
 
@@ -41,7 +43,7 @@ export function FilterBar({ onFilterChange, onSearch }: FilterBarProps) {
   return (
     <div className="bg-white p-8 max-w-7xl mx-auto -mt-12 mb-12 rounded-2xl shadow-2xl border border-slate-200 relative z-20">
       <form onSubmit={handleSubmit}>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
         {/* State Filter */}
         <div className="flex flex-col gap-2">
           <label htmlFor="state" className="font-semibold text-slate-700 text-sm">
@@ -93,6 +95,25 @@ export function FilterBar({ onFilterChange, onSearch }: FilterBarProps) {
             onChange={(e) => handleFilterChange('searchQuery', e.target.value)}
             className="px-4 py-3.5 border-2 border-slate-200 rounded-lg text-base transition-all focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
           />
+        </div>
+
+        {/* Max Pages */}
+        <div className="flex flex-col gap-2">
+          <label htmlFor="maxPages" className="font-semibold text-slate-700 text-sm">
+            📄 Max Pages to Scrape
+          </label>
+          <input
+            type="number"
+            id="maxPages"
+            min="1"
+            max="50"
+            value={filters.maxPages}
+            onChange={(e) => handleFilterChange('maxPages', e.target.value)}
+            className="px-4 py-3.5 border-2 border-slate-200 rounded-lg text-base transition-all focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+          />
+          <p className="text-xs text-slate-500">
+            Scrape up to 50 pages of results (each page ≈ 10-25 filings)
+          </p>
         </div>
       </div>
 

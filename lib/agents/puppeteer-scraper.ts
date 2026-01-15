@@ -1,11 +1,13 @@
 // lib/agents/puppeteer-scraper.ts
-import puppeteer from 'puppeteer-core';
-import chromium from '@sparticuz/chromium';
+import puppeteer from 'puppeteer'; // Use regular puppeteer (includes Chrome)
+// import chromium from '@sparticuz/chromium'; // Only needed for Vercel deployment
 
 interface PuppeteerScraperInput {
     state: string;
     insuranceType: string;
     companyName: string;
+    startDate?: Date; // Optional: defaults to yesterday for current filings
+    maxPages?: number; // Maximum number of pages to scrape (default: 50)
 }
 
 interface PuppeteerScraperResult {
@@ -14,6 +16,9 @@ interface PuppeteerScraperResult {
     message?: string;
     error?: string;
     filings?: any[];
+    sampleFilingDocuments?: any;
+    pagesScraped?: number;
+    totalPages?: number;
 }
 
 export class PuppeteerSERFFScraper {
@@ -55,24 +60,16 @@ export class PuppeteerSERFFScraper {
 
         let browser;
         try {
-            // Configure for serverless environment (Vercel) or local development
-            const isProduction = process.env.VERCEL || process.env.NODE_ENV === 'production';
-            
-            const launchOptions: any = {
+            // Launch Puppeteer with Chrome (bundled with puppeteer package)
+            browser = await puppeteer.launch({
                 headless: true,
-                args: isProduction 
-                    ? [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox']
-                    : ['--no-sandbox', '--disable-setuid-sandbox'],
-            };
-            
-            // In production (Vercel), use chromium from @sparticuz/chromium
-            if (isProduction) {
-                launchOptions.executablePath = await chromium.executablePath();
-            }
-            // For local development, puppeteer-core will use system Chrome
-            // Or install regular 'puppeteer' package for local dev
-            
-            browser = await puppeteer.launch(launchOptions);
+                args: [
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-gpu',
+                ],
+            });
 
             const page = await browser.newPage();
             page.setDefaultNavigationTimeout(60000);
@@ -223,6 +220,42 @@ export class PuppeteerSERFFScraper {
                 await new Promise(r => setTimeout(r, 1000));
             }
 
+            // Step 4d: Fill Start Submission Date (defaults to yesterday for current filings)
+            const targetDate = input.startDate || (() => {
+                const yesterday = new Date();
+                yesterday.setDate(yesterday.getDate() - 1);
+                return yesterday;
+            })();
+            
+            const dateString = this.formatDateForSERFF(targetDate);
+            console.log(`   📅 Setting Start Submission Date: ${dateString} (filtering for current filings)`);
+            
+            const startDateInputSelector = 'input[id*="startSubmissionDate"]';
+            const startDateInput = await page.$(startDateInputSelector);
+            
+            if (startDateInput) {
+                // Clear and set the date using JavaScript
+                await page.evaluate((selector, date) => {
+                    const input = document.querySelector(selector) as HTMLInputElement;
+                    if (input) {
+                        input.value = date;
+                        input.dispatchEvent(new Event('change', { bubbles: true }));
+                        input.dispatchEvent(new Event('blur', { bubbles: true }));
+                    }
+                }, startDateInputSelector, dateString);
+                
+                // Verify the date was set
+                const actualDate = await page.evaluate((selector) => {
+                    const input = document.querySelector(selector) as HTMLInputElement;
+                    return input ? input.value : '';
+                }, startDateInputSelector);
+                
+                console.log(`   ✅ Start Submission Date set: ${actualDate}`);
+                await new Promise(r => setTimeout(r, 500));
+            } else {
+                console.warn('   ⚠️ Start Submission Date input not found, continuing without it');
+            }
+
             await page.screenshot({ path: 'step4-form-filled.png', fullPage: true });
             console.log(`   📸 Screenshot: step4-form-filled.png`);
 
@@ -321,69 +354,183 @@ export class PuppeteerSERFFScraper {
             }
 
             // ================================================================
-            // STEP 6: Extract real filing data from results table
+            // STEP 6: Extract real filing data from results table (WITH PAGINATION)
             // ================================================================
-            console.log('\n📊 STEP 6: Extracting filing data from results table...');
+            console.log('\n📊 STEP 6: Extracting filing data from results table (with pagination)...');
             
-            // Debug: Find all tables and their structure
-            const tableInfo = await page.evaluate(() => {
-                const tables = Array.from(document.querySelectorAll('table'));
-                return tables.map((table, idx) => ({
-                    index: idx,
-                    id: table.id,
-                    classes: table.className,
-                    rowCount: table.querySelectorAll('tbody tr').length,
-                    hasData: table.querySelectorAll('tbody tr td').length > 0
-                }));
-            });
-            console.log('   🔍 Found tables:', JSON.stringify(tableInfo, null, 2));
+            const maxPages = input.maxPages || 50; // Default to 50 pages
+            let allFilings: any[] = [];
+            let currentPage = 1;
+            let hasNextPage = true;
             
-            const filings = await page.evaluate(() => {
-                // Try multiple selectors to find the results table
-                let rows: Element[] = [];
+            while (hasNextPage && currentPage <= maxPages) {
+                console.log(`\n📄 Processing page ${currentPage}...`);
                 
-                // Try selector 1: PrimeFaces datatable
-                rows = Array.from(document.querySelectorAll('table.ui-datatable tbody tr'));
-                if (rows.length === 0) {
-                    // Try selector 2: Any table with tbody
-                    rows = Array.from(document.querySelectorAll('table tbody tr'));
-                }
-                if (rows.length === 0) {
-                    // Try selector 3: Just all tr elements
-                    rows = Array.from(document.querySelectorAll('tr'));
+                // Wait for table to load
+                await new Promise(r => setTimeout(r, 2000));
+                
+                // Debug: Find all tables and their structure (only on first page)
+                if (currentPage === 1) {
+                    const tableInfo = await page.evaluate(() => {
+                        const tables = Array.from(document.querySelectorAll('table'));
+                        return tables.map((table, idx) => ({
+                            index: idx,
+                            id: table.id,
+                            classes: table.className,
+                            rowCount: table.querySelectorAll('tbody tr').length,
+                            hasData: table.querySelectorAll('tbody tr td').length > 0
+                        }));
+                    });
+                    console.log('   🔍 Found tables:', JSON.stringify(tableInfo, null, 2));
                 }
                 
-                console.log(`Found ${rows.length} rows using selector`);
-                
-                return rows.map(row => {
-                    const cells = Array.from(row.querySelectorAll('td'));
+                // Extract filings from current page
+                const pageFilings = await page.evaluate(() => {
+                    // Try multiple selectors to find the results table
+                    let rows: Element[] = [];
                     
-                    // Skip rows without enough cells (e.g., header rows, empty rows)
-                    if (cells.length < 7) return null;
+                    // Try selector 1: PrimeFaces datatable
+                    rows = Array.from(document.querySelectorAll('table.ui-datatable tbody tr'));
+                    if (rows.length === 0) {
+                        // Try selector 2: Any table with tbody
+                        rows = Array.from(document.querySelectorAll('table tbody tr'));
+                    }
+                    if (rows.length === 0) {
+                        // Try selector 3: Just all tr elements
+                        rows = Array.from(document.querySelectorAll('tr'));
+                    }
+                    
+                    console.log(`Found ${rows.length} rows using selector`);
+                    
+                    return rows.map(row => {
+                        const cells = Array.from(row.querySelectorAll('td'));
+                        
+                        // Skip rows without enough cells (e.g., header rows, empty rows)
+                        if (cells.length < 7) return null;
+                        
+                        return {
+                            companyName: cells[0]?.textContent?.trim() || '',
+                            naicNumber: cells[1]?.textContent?.trim() || '',
+                            productDescription: cells[2]?.textContent?.trim() || '',
+                            typeOfInsurance: cells[3]?.textContent?.trim() || '',
+                            filingType: cells[4]?.textContent?.trim() || '', // Rate, Form, Rule
+                            status: cells[5]?.textContent?.trim() || '',
+                            filingNumber: cells[6]?.textContent?.trim() || '',
+                        };
+                    }).filter(filing => filing !== null && filing.filingNumber); // Remove null entries and empty filings
+                });
+                
+                console.log(`   ✅ Extracted ${pageFilings.length} filings from page ${currentPage}`);
+                allFilings = [...allFilings, ...pageFilings];
+                
+                // Take screenshot of current page
+                await page.screenshot({ 
+                    path: `step6-page-${currentPage}.png`, 
+                    fullPage: true 
+                });
+                
+                // Check for next page button and pagination info
+                const paginationInfo = await page.evaluate(() => {
+                    // Look for PrimeFaces pagination controls
+                    const nextButton = document.querySelector('.ui-paginator-next:not(.ui-state-disabled)');
+                    const pageLinks = document.querySelectorAll('.ui-paginator-page');
+                    const currentPageIndicator = document.querySelector('.ui-paginator-page.ui-state-active');
+                    
+                    // Alternative: Look for standard "Next" buttons
+                    const nextLinks = Array.from(document.querySelectorAll('a, button')).filter(el => 
+                        el.textContent?.toLowerCase().includes('next') && 
+                        !el.classList.contains('disabled')
+                    );
                     
                     return {
-                        companyName: cells[0]?.textContent?.trim() || '',
-                        naicNumber: cells[1]?.textContent?.trim() || '',
-                        productDescription: cells[2]?.textContent?.trim() || '',
-                        typeOfInsurance: cells[3]?.textContent?.trim() || '',
-                        filingType: cells[4]?.textContent?.trim() || '', // Rate, Form, Rule
-                        status: cells[5]?.textContent?.trim() || '',
-                        filingNumber: cells[6]?.textContent?.trim() || '',
+                        hasNextButton: !!nextButton || nextLinks.length > 0,
+                        totalPageLinks: pageLinks.length,
+                        currentPageText: currentPageIndicator?.textContent?.trim(),
+                        nextButtonSelector: nextButton ? 'ui-paginator-next' : 'text-based'
                     };
-                }).filter(filing => filing !== null && filing.filingNumber); // Remove null entries and empty filings
-            });
+                });
+                
+                console.log('   📊 Pagination info:', paginationInfo);
+                
+                // Check if there's a next page
+                if (paginationInfo.hasNextButton && currentPage < maxPages) {
+                    console.log(`   ➡️ Navigating to page ${currentPage + 1}...`);
+                    
+                    try {
+                        // Try clicking the next button
+                        const clicked = await page.evaluate(() => {
+                            // Try PrimeFaces next button
+                            const nextBtn = document.querySelector('.ui-paginator-next:not(.ui-state-disabled)') as HTMLElement;
+                            if (nextBtn) {
+                                nextBtn.click();
+                                return true;
+                            }
+                            
+                            // Try standard next button/link
+                            const nextLinks = Array.from(document.querySelectorAll('a, button')).filter(el => 
+                                el.textContent?.toLowerCase().includes('next') && 
+                                !el.classList.contains('disabled')
+                            );
+                            
+                            if (nextLinks.length > 0) {
+                                (nextLinks[0] as HTMLElement).click();
+                                return true;
+                            }
+                            
+                            return false;
+                        });
+                        
+                        if (clicked) {
+                            // Wait for new content to load
+                            await new Promise(r => setTimeout(r, 3000));
+                            currentPage++;
+                        } else {
+                            console.log('   ⚠️ Could not click next button');
+                            hasNextPage = false;
+                        }
+                    } catch (error) {
+                        console.error('   ❌ Error navigating to next page:', error);
+                        hasNextPage = false;
+                    }
+                } else {
+                    hasNextPage = false;
+                    if (currentPage >= maxPages) {
+                        console.log(`   🛑 Reached maximum page limit (${maxPages})`);
+                    } else {
+                        console.log('   🏁 No more pages available');
+                    }
+                }
+            }
 
-            console.log(`✅ Extracted ${filings.length} real filings from SERFF!`);
+            console.log(`\n✅ Total filings extracted: ${allFilings.length} from ${currentPage} pages`);
+            if (allFilings.length > 0) {
+                console.log('📋 Sample filing:', JSON.stringify(allFilings[0], null, 2));
+                console.log('📋 First page count:', allFilings.filter((_, i) => i < 10).length);
+            }
+            
+            const filings = allFilings;
+
+            // ================================================================
+            // STEP 7: Click on first filing to see available documents
+            // ================================================================
+            let firstFilingDocuments = null;
             if (filings.length > 0) {
-                console.log('📋 Sample filing:', JSON.stringify(filings[0], null, 2));
-                console.log('📋 Total filings:', filings.length);
+                console.log('\n📄 STEP 7: Clicking on first filing to see available documents...');
+                try {
+                    firstFilingDocuments = await this.extractFilingDocuments(page, filings[0].filingNumber);
+                } catch (error) {
+                    console.error('   ⚠️ Failed to extract filing documents:', error);
+                }
             }
 
             return {
                 success: true,
                 resultCount: filings.length,
-                message: `Found ${filings.length} real filings from SERFF!`,
+                message: `Found ${filings.length} real filings from ${currentPage} pages on SERFF!`,
                 filings: filings,
+                sampleFilingDocuments: firstFilingDocuments,
+                pagesScraped: currentPage,
+                totalPages: currentPage, // Could be more, but we stopped here
             };
 
         } catch (error) {
@@ -396,6 +543,123 @@ export class PuppeteerSERFFScraper {
         } finally {
             if (browser) await browser.close();
         }
+    }
+
+    /**
+     * Format date for SERFF date inputs (MM/DD/YYYY)
+     */
+    private formatDateForSERFF(date: Date): string {
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const year = date.getFullYear();
+        return `${month}/${day}/${year}`;
+    }
+
+    /**
+     * Click on a filing and extract all available documents
+     */
+    private async extractFilingDocuments(page: any, filingNumber: string): Promise<any> {
+        console.log(`   🔍 Looking for filing: ${filingNumber}`);
+        
+        // Find and click the filing number link
+        const filingLinkClicked = await page.evaluate((targetFilingNumber: string) => {
+            const links = Array.from(document.querySelectorAll('a'));
+            const filingLink = links.find(link => 
+                link.textContent?.trim() === targetFilingNumber
+            );
+            
+            if (filingLink) {
+                (filingLink as HTMLElement).click();
+                return true;
+            }
+            return false;
+        }, filingNumber);
+
+        if (!filingLinkClicked) {
+            throw new Error(`Filing link not found for: ${filingNumber}`);
+        }
+
+        console.log('   ✅ Clicked filing link, waiting for page load...');
+        
+        // Wait for navigation to filing details page
+        await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 });
+        await new Promise(r => setTimeout(r, 3000));
+        
+        // Take screenshot of filing details page
+        await page.screenshot({ path: 'step6-filing-details.png', fullPage: true });
+        console.log(`   📸 Screenshot: step6-filing-details.png`);
+        console.log(`   ✅ Current URL: ${page.url()}`);
+
+        // Extract all available documents/files
+        const documents = await page.evaluate(() => {
+            const results: any = {
+                pageTitle: document.querySelector('h1, h2, .page-title')?.textContent?.trim(),
+                sections: [] as any[],
+                allLinks: [] as any[],
+                tables: [] as any[],
+            };
+
+            // Find all document links (PDFs, files, etc.)
+            const links = Array.from(document.querySelectorAll('a'));
+            results.allLinks = links.map(link => ({
+                text: link.textContent?.trim(),
+                href: link.getAttribute('href'),
+                isPDF: link.getAttribute('href')?.toLowerCase().includes('.pdf'),
+                isDocument: link.getAttribute('href')?.toLowerCase().match(/\.(pdf|doc|docx|xls|xlsx|zip)$/),
+            })).filter(link => link.text && link.text.length > 0);
+
+            // Find document sections
+            const sections = Array.from(document.querySelectorAll('div[class*="panel"], div[class*="section"], div[class*="document"]'));
+            results.sections = sections.map((section, idx) => ({
+                index: idx,
+                title: section.querySelector('h1, h2, h3, h4, .panel-heading, .section-title')?.textContent?.trim(),
+                content: section.textContent?.substring(0, 200).trim(),
+            }));
+
+            // Find all tables (might contain document lists)
+            const tables = Array.from(document.querySelectorAll('table'));
+            results.tables = tables.map((table, idx) => {
+                const headers = Array.from(table.querySelectorAll('thead th, tr:first-child th, tr:first-child td'))
+                    .map(th => th.textContent?.trim());
+                const rows = Array.from(table.querySelectorAll('tbody tr, tr:not(:first-child)'))
+                    .slice(0, 5) // Get first 5 rows
+                    .map(tr => Array.from(tr.querySelectorAll('td')).map(td => td.textContent?.trim()));
+                
+                return {
+                    index: idx,
+                    headers: headers,
+                    rowCount: table.querySelectorAll('tbody tr, tr').length,
+                    sampleRows: rows,
+                };
+            });
+
+            return results;
+        });
+
+        console.log('\n📋 EXTRACTED DOCUMENTS:');
+        console.log('   Page Title:', documents.pageTitle);
+        console.log('   Total Links:', documents.allLinks.length);
+        console.log('   PDF Links:', documents.allLinks.filter((l: any) => l.isPDF).length);
+        console.log('   Document Links:', documents.allLinks.filter((l: any) => l.isDocument).length);
+        console.log('   Sections Found:', documents.sections.length);
+        console.log('   Tables Found:', documents.tables.length);
+        
+        if (documents.allLinks.length > 0) {
+            console.log('\n📎 Document Links:');
+            documents.allLinks.filter((l: any) => l.isDocument).forEach((link: any, idx: number) => {
+                console.log(`   ${idx + 1}. ${link.text} (${link.href})`);
+            });
+        }
+
+        if (documents.tables.length > 0) {
+            console.log('\n📊 Tables:');
+            documents.tables.forEach((table: any, idx: number) => {
+                console.log(`   Table ${idx + 1}: ${table.headers?.join(' | ')}`);
+                console.log(`   Rows: ${table.rowCount}`);
+            });
+        }
+
+        return documents;
     }
 }
 

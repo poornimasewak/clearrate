@@ -196,3 +196,6 @@ The monitor is resilient to errors:
 - Subsequent runs compare against previous check
 - Check `lastCheckedFilings` is persisting correctly
 
+
+
+
